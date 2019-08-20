@@ -11,8 +11,8 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/modules/")
 
 option(USE_QT4 "use Qt4 instead of Qt5" FALSE) #TODO
 option(USE_PHONON "use Phonon" TRUE)
-option(USE_SYSTEM_HUNSPELL "use system Hunspell" TRUE) #TODO
-option(USE_SYSTEM_QUAZIP "use system Quazip" TRUE) #TODO
+option(USE_SYSTEM_HUNSPELL "use system Hunspell" TRUE)
+option(USE_SYSTEM_QUAZIP "use system Quazip" TRUE)
 option(NO_CRASH_HANDLER "Don't use crash handler" FALSE)
 option(NO_TESTS "Don't build tests" FALSE)
 option(NO_POPPLER_PREVIEW "Don't use poppler preview" FALSE)
@@ -385,7 +385,6 @@ else()
             src/hunspell/phonet.cxx
             src/hunspell/replist.cxx
             src/hunspell/suggestmgr.cxx
-            src/hunspell/utf_info.cxx
             src/hunspell/filemgr.cxx
             src/hunspell/hunzip.cxx)
 endif()
