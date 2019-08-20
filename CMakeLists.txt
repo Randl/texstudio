@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.10)
 project(texstudio
         LANGUAGES C CXX
         VERSION 2.0.0
@@ -6,14 +6,8 @@ project(texstudio
         HOMEPAGE_URL "https://www.texstudio.org/"
         )
 
-#set(CMAKE_AUTOMOC ON)
-#set(CMAKE_AUTORCC ON)
-#set(CMAKE_AUTOUIC ON)
 
-set(CMAKE_CXX_STANDARD 11)
-
-
-set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/modules/")
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/modules/")
 
 option(USE_QT4 "use Qt4 instead of Qt5" FALSE)
 option(USE_PHONON "use Phonon" TRUE)
@@ -21,7 +15,10 @@ option(USE_SYSTEM_HUNSPELL "use system Hunspell" TRUE)
 option(USE_SYSTEM_QUAZIP "use system Quazip" TRUE)
 option(NO_CRASH_HANDLER "Don't use crash handler" FALSE)
 option(NO_TESTS "Don't build tests" FALSE)
-option(NO_POPPLER_PREVIEW "Don't use poppler preview" TRUE)
+option(NO_POPPLER_PREVIEW "Don't use poppler preview" FALSE)
+option(USE_ASAN "Build with AddressSanitizer" FALSE)
+option(USE_IPO "Build with INTERPROCEDURAL OPTIMIZATION" FALSE)
+
 
 if (UNIX AND NOT APPLE)
     set(LINUX 1)
@@ -31,20 +28,23 @@ if (NOT NO_TESTS AND CMAKE_BUILD_TYPE MATCHES "Debug")
     set(USE_TESTS 1)
 endif()
 
-if (UNIX)
-    find_package(Threads REQUIRED)
-    find_package(ZLIB REQUIRED)
+
+if (NOT USE_QT4)
+    set(USE_QT5 1)
 endif()
 
-if (USE_QT4)
-    find_package(Qt4 COMPONENTS Network Xml Svg Script PrintSupport Concurrent REQUIRED)
-    if (USE_PHONON)
-        find_package(Phonon REQUIRED)
-    endif()
-else()
+find_package(Threads REQUIRED)
+find_package(ZLIB REQUIRED)
+
+if (USE_QT5)
     find_package(Qt5 COMPONENTS Network Xml Svg Script PrintSupport Concurrent Widgets UiTools REQUIRED)
     if (USE_PHONON)
         find_package(Phonon4Qt5 REQUIRED)
+    endif()
+else()
+    find_package(Qt4 COMPONENTS Network Xml Svg Script PrintSupport Concurrent REQUIRED)
+    if (USE_PHONON)
+        find_package(Phonon REQUIRED)
     endif()
 endif()
 
@@ -505,11 +505,11 @@ set(SOURCES ${SOURCES}
         src/symbolpanel/symbolwidget.cpp)
 
 if (USE_SYSTEM_QUAZIP)
-    if (USE_QT4)
-        find_package(QuaZip REQUIRED)
+    if (USE_QT5)
+        find_package(QuaZip5 REQUIRED)
         include_directories(${QUAZIP_INCLUDE_DIRS})
     else()
-        find_package(QuaZip5 REQUIRED)
+        find_package(QuaZip REQUIRED)
         include_directories(${QUAZIP_INCLUDE_DIRS})
     endif()
 else()
@@ -554,15 +554,40 @@ set(FORMS ${FORMS}
 if(NO_POPPLER_PREVIEW)
     add_compile_definitions(NO_POPPLER_PREVIEW)
 else()
+    if(WIN32)
+        if(USE_QT5)
+            include_directories(src/pdfviewer/include_win32_qt5)
+        else()
+            include_directories(src/pdfviewer/include_win32)
+        endif()
+        add_compile_definitions(HAS_POPPLER_24)
+        add_compile_definitions(HAS_POPPLER_31)
+    else()
+        find_package(ECM 5.19 REQUIRED NOMODULE)
+        set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${ECM_MODULE_PATH} ${ECM_KDE_MODULE_DIR})
+        if(USE_QT5)
+            find_package(Poppler COMPONENTS Core  Cpp  Qt5 Glib REQUIRED)
+
+        else()
+            find_library(Poppler COMPONENTS Core  Cpp  Qt4 Glib REQUIRED)
+            message(WARNING ${Poppler_VERSION})
+        endif()
+        if (${Poppler_VERSION} GREATER 0.24)
+            add_compile_definitions(HAS_POPPLER_24)
+        endif()
+        if (${Poppler_VERSION} GREATER 0.31)
+            add_compile_definitions(HAS_POPPLER_31)
+        endif()
+    endif()
 endif()
 
 IF(USE_TESTS) #TODO
     enable_testing(true)
 
-    if (USE_QT4)
-        find_package(Qt4 COMPONENTS Test REQUIRED)
-    else()
+    if (USE_QT5)
         find_package(Qt5 COMPONENTS Test REQUIRED)
+    else()
+        find_package(Qt4 COMPONENTS Test REQUIRED)
     endif()
 
     set(HEADERS ${HEADERS}
@@ -618,7 +643,7 @@ IF(USE_TESTS) #TODO
             src/tests/testmanager.cpp
             src/tests/testutil.cpp)
 else()
-        add_compile_definitions(NO_TESTS)
+    add_compile_definitions(NO_TESTS)
 endif()
 
 if(NO_CRASH_HANDLER)
@@ -651,46 +676,69 @@ if(NOT MSVC)
         set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -rdynamic")
     else()
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -gstabs -g")
+        if (USE_ASAN)
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer -g")
+        endif()
     endif()
 else()
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 endif()
 
 
-if (USE_QT4)
-    QT4_WRAP_UI(UI_HEADERS ${FORMS})
-else()
+if (USE_QT5)
     qt5_wrap_ui(UI_HEADERS ${FORMS})
     qt5_wrap_cpp(MOC_SOURCES ${SOURCES} OPTIONS -DQT_VERSION=0x050000)
     qt5_wrap_cpp(MOC_HEADERS ${HEADERS} OPTIONS -DQT_VERSION=0x050000) # https://bugreports.qt.io/browse/QTBUG-51028
     qt5_add_resources(RCC_SOURCES ${RESOURCES})
     include_directories(${CMAKE_CURRENT_BINARY_DIR}) # TODO
+else()
+    QT4_WRAP_UI(UI_HEADERS ${FORMS})
 endif()
 
-add_executable(texstudio ${SOURCES} ${HEADERS} ${UI_HEADERS} ${RCC_SOURCES} ${MOC_SOURCES} ${MOC_HEADERS})
+add_executable(texstudio ${SOURCES} ${UI_HEADERS} ${RCC_SOURCES} ${MOC_SOURCES} ${MOC_HEADERS})
+set_property(TARGET texstudio PROPERTY CXX_STANDARD 11)
 
 
-if (USE_QT4)
-else()
+if (USE_QT5)
     qt5_use_modules(texstudio Network Xml Svg Script PrintSupport Concurrent Widgets UiTools)
     if (USE_TESTS)
         qt5_use_modules(texstudio Test)
     endif()
+else()
 endif()
 
-target_link_libraries (texstudio ${QUAZIP_LIBRARIES})
-if (UNIX)
-    target_link_libraries (texstudio ${CMAKE_THREAD_LIBS_INIT})
-    target_link_libraries (texstudio ${ZLIB_LIBRARIES})
-endif()
+target_link_libraries(texstudio ${QUAZIP_LIBRARIES})
+target_link_libraries(texstudio Threads::Threads)
+target_link_libraries(texstudio ZLIB::ZLIB)
 
 
 if (LINUX)
-    target_link_libraries (texstudio ${X11_LIBRARIES})
+    target_link_libraries(texstudio ${X11_LIBRARIES})
 endif()
 
 
 if (USE_SYSTEM_HUNSPELL)
-    target_link_libraries (texstudio ${HUNSPELL_LIBRARIES})
+    target_link_libraries(texstudio ${HUNSPELL_LIBRARIES})
+endif()
+
+if (NOT NO_POPPLER_PREVIEW)
+    target_link_libraries(texstudio Poppler::Core)
+
+    if (USE_QT5)
+        target_link_libraries(texstudio Poppler::Qt5)
+    else()
+        target_link_libraries(texstudio Poppler::Qt4)
+    endif()
+endif()
+
+if (USE_IPO)
+    include(CheckIPOSupported)
+    # Optional IPO. Do not use IPO if it's not supported by compiler.
+    check_ipo_supported(RESULT HAS_IPO OUTPUT IPO_CHECK_RESULT)
+    if(HAS_IPO)
+        set_property(TARGET texstudio PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+    else()
+        message(WARNING "IPO is not supported: ${IPO_CHECK_RESULT}")
+    endif()
 endif()
 
