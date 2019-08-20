@@ -11,8 +11,8 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/modules/")
 
 option(USE_QT4 "use Qt4 instead of Qt5" FALSE)
 option(USE_PHONON "use Phonon" TRUE)
-option(USE_SYSTEM_HUNSPELL "use system Hunspell" TRUE)
-option(USE_SYSTEM_QUAZIP "use system Quazip" TRUE)
+option(USE_SYSTEM_HUNSPELL "use system Hunspell" TRUE) #TODO
+option(USE_SYSTEM_QUAZIP "use system Quazip" TRUE) #TODO
 option(NO_CRASH_HANDLER "Don't use crash handler" FALSE)
 option(NO_TESTS "Don't build tests" FALSE)
 option(NO_POPPLER_PREVIEW "Don't use poppler preview" FALSE)
@@ -33,16 +33,24 @@ if (NOT USE_QT4)
     set(USE_QT5 1)
 endif()
 
+
+add_library(texstudio_interface INTERFACE)
+
 find_package(Threads REQUIRED)
+target_link_libraries(texstudio_interface INTERFACE Threads::Threads)
+
 find_package(ZLIB REQUIRED)
+target_link_libraries(texstudio_interface INTERFACE ZLIB::ZLIB)
 
 if (USE_QT5)
-    find_package(Qt5 COMPONENTS Network Xml Svg Script PrintSupport Concurrent Widgets UiTools REQUIRED)
+    find_package(Qt5 COMPONENTS Core Network Xml Svg Script PrintSupport Concurrent Widgets UiTools REQUIRED)
+    target_link_libraries(texstudio_interface INTERFACE Qt5::Network Qt5::Xml Qt5::Svg Qt5::Script Qt5::PrintSupport
+            Qt5::Concurrent Qt5::Widgets Qt5::UiTools)
     if (USE_PHONON)
         find_package(Phonon4Qt5 REQUIRED)
     endif()
 else()
-    find_package(Qt4 COMPONENTS Network Xml Svg Script PrintSupport Concurrent REQUIRED)
+    find_package(Qt4 COMPONENTS Core Network Xml Svg Script PrintSupport Concurrent REQUIRED)
     if (USE_PHONON)
         find_package(Phonon REQUIRED)
     endif()
@@ -59,10 +67,6 @@ if (TRUE)
             src/qtsingleapplication/qtsinglecoreapplication.cpp
             src/qtsingleapplication/qtsingleapplication.cpp
             src/qtsingleapplication/qtlocalpeer.cpp)
-    if(WIN32)
-        # if shared lib
-        add_compile_definitions(QT_QTSINGLECOREAPPLICATION_EXPORT=__declspec(dllexport))
-    endif()
 else()
 endif()
 
@@ -220,7 +224,6 @@ set(SOURCES ${SOURCES}
         src/libqmarkedscrollbar/src/markedscrollbar.cpp
         src/logeditor.cpp
         src/loghighlighter.cpp
-        src/main.cpp
         src/maketemplatedialog.cpp
         src/manhattanstyle.cpp
         src/mathassistant.cpp
@@ -345,13 +348,15 @@ if (LINUX)
     set(SOURCES ${SOURCES}
             src/xkb/XKeyboard.cpp)
     find_package(X11 REQUIRED)
+    target_link_libraries(texstudio_interface INTERFACE ${X11_LIBRARIES})
 endif()
 
 if (USE_SYSTEM_HUNSPELL)
     find_package(Hunspell REQUIRED)
     include_directories(${HUNSPELL_INCLUDE_DIRS})
+    target_link_libraries(texstudio_interface INTERFACE ${HUNSPELL_LIBRARIES})
 else()
-    add_compile_definitions(HUNSPELL_STATIC)
+    target_compile_definitions(texstudio_interface INTERFACE  HUNSPELL_STATIC)
     include_directories(src/hunspell)
     set(HEADERS ${HEADERS}
             src/hunspell/affentry.hxx
@@ -463,7 +468,7 @@ set(FORMS ${FORMS}
         src/qcodeedit/lib/widgets/gotolinedialog.ui
         src/qcodeedit/lib/widgets/editconfig.ui
         src/qcodeedit/lib/widgets/formatconfig.ui)
-add_compile_definitions(QNFA_BUILD)
+target_compile_definitions(texstudio_interface INTERFACE  QNFA_BUILD)
 set(HEADERS ${HEADERS}
         src/qcodeedit/lib/qnfa/qnfa.h
         src/qcodeedit/lib/qnfa/qnfadefinition.h
@@ -512,8 +517,9 @@ if (USE_SYSTEM_QUAZIP)
         find_package(QuaZip REQUIRED)
         include_directories(${QUAZIP_INCLUDE_DIRS})
     endif()
+    target_link_libraries(texstudio_interface INTERFACE ${QUAZIP_LIBRARIES})
 else()
-    add_compile_definitions(QUAZIP_STATIC)
+    target_compile_definitions(texstudio_interface INTERFACE  QUAZIP_STATIC)
     # include(src/quazip/quazip/quazip.pri)
 endif()
 
@@ -552,7 +558,7 @@ set(FORMS ${FORMS}
         src/pdfviewer/pdfannotationdlg.ui)
 
 if(NO_POPPLER_PREVIEW)
-    add_compile_definitions(NO_POPPLER_PREVIEW)
+    target_compile_definitions(texstudio_interface INTERFACE  NO_POPPLER_PREVIEW)
 else()
     if(WIN32)
         if(USE_QT5)
@@ -560,23 +566,24 @@ else()
         else()
             include_directories(src/pdfviewer/include_win32)
         endif()
-        add_compile_definitions(HAS_POPPLER_24)
-        add_compile_definitions(HAS_POPPLER_31)
+        target_compile_definitions(texstudio_interface INTERFACE  HAS_POPPLER_24)
+        target_compile_definitions(texstudio_interface INTERFACE  HAS_POPPLER_31)
     else()
         find_package(ECM 5.19 REQUIRED NOMODULE)
         set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${ECM_MODULE_PATH} ${ECM_KDE_MODULE_DIR})
         if(USE_QT5)
-            find_package(Poppler COMPONENTS Core  Cpp  Qt5 Glib REQUIRED)
+            find_package(Poppler COMPONENTS Qt5 REQUIRED)
+            target_link_libraries(texstudio_interface INTERFACE Poppler::Qt5) # Poppler::Core
 
         else()
-            find_library(Poppler COMPONENTS Core  Cpp  Qt4 Glib REQUIRED)
-            message(WARNING ${Poppler_VERSION})
+            find_library(Poppler COMPONENTS Qt4 REQUIRED)
+            target_link_libraries(texstudio_interface INTERFACE Poppler::Qt4) # Poppler::Core
         endif()
         if (${Poppler_VERSION} GREATER 0.24)
-            add_compile_definitions(HAS_POPPLER_24)
+            target_compile_definitions(texstudio_interface INTERFACE  HAS_POPPLER_24)
         endif()
         if (${Poppler_VERSION} GREATER 0.31)
-            add_compile_definitions(HAS_POPPLER_31)
+            target_compile_definitions(texstudio_interface INTERFACE  HAS_POPPLER_31)
         endif()
     endif()
 endif()
@@ -586,6 +593,7 @@ IF(USE_TESTS) #TODO
 
     if (USE_QT5)
         find_package(Qt5 COMPONENTS Test REQUIRED)
+        target_link_libraries(texstudio_interface INTERFACE Qt5::Test)
     else()
         find_package(Qt4 COMPONENTS Test REQUIRED)
     endif()
@@ -643,11 +651,11 @@ IF(USE_TESTS) #TODO
             src/tests/testmanager.cpp
             src/tests/testutil.cpp)
 else()
-    add_compile_definitions(NO_TESTS)
+    target_compile_definitions(texstudio_interface INTERFACE  NO_TESTS)
 endif()
 
 if(NO_CRASH_HANDLER)
-    add_compile_definitions(NO_CRASH_HANDLER)
+    target_compile_definitions(texstudio_interface INTERFACE  NO_CRASH_HANDLER)
 endif()
 
 ## TODO not git
@@ -668,20 +676,8 @@ endif()
 set(SOURCES ${SOURCES}
         src/git_revision.cpp)
 
-if(NOT MSVC)
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra -Winit-self -Wmissing-include-dirs")
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wtrigraphs -Wunused -Wunknown-pragmas -Wundef -Wpointer-arith")
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wwrite-strings -Wempty-body -Wsign-compare -Waddress -Winline")
-    if(NOT UNIX)
-        set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -rdynamic")
-    else()
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -gstabs -g")
-        if (USE_ASAN)
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer -g")
-        endif()
-    endif()
-else()
-    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+if(MSVC)
+    target_compile_definitions(texstudio_interface INTERFACE  _CRT_SECURE_NO_WARNINGS)
 endif()
 
 
@@ -690,44 +686,23 @@ if (USE_QT5)
     qt5_wrap_cpp(MOC_SOURCES ${SOURCES} OPTIONS -DQT_VERSION=0x050000)
     qt5_wrap_cpp(MOC_HEADERS ${HEADERS} OPTIONS -DQT_VERSION=0x050000) # https://bugreports.qt.io/browse/QTBUG-51028
     qt5_add_resources(RCC_SOURCES ${RESOURCES})
-    include_directories(${CMAKE_CURRENT_BINARY_DIR}) # TODO
 else()
     QT4_WRAP_UI(UI_HEADERS ${FORMS})
 endif()
+target_include_directories(texstudio_interface INTERFACE ${CMAKE_CURRENT_BINARY_DIR}) # https://gitlab.kitware.com/cmake/cmake/issues/17456
 
-add_executable(texstudio ${SOURCES} ${UI_HEADERS} ${RCC_SOURCES} ${MOC_SOURCES} ${MOC_HEADERS})
-set_property(TARGET texstudio PROPERTY CXX_STANDARD 11)
-
-
-if (USE_QT5)
-    qt5_use_modules(texstudio Network Xml Svg Script PrintSupport Concurrent Widgets UiTools)
-    if (USE_TESTS)
-        qt5_use_modules(texstudio Test)
-    endif()
-else()
-endif()
-
-target_link_libraries(texstudio ${QUAZIP_LIBRARIES})
-target_link_libraries(texstudio Threads::Threads)
-target_link_libraries(texstudio ZLIB::ZLIB)
-
-
-if (LINUX)
-    target_link_libraries(texstudio ${X11_LIBRARIES})
-endif()
-
-
-if (USE_SYSTEM_HUNSPELL)
-    target_link_libraries(texstudio ${HUNSPELL_LIBRARIES})
-endif()
-
-if (NOT NO_POPPLER_PREVIEW)
-    target_link_libraries(texstudio Poppler::Core)
-
-    if (USE_QT5)
-        target_link_libraries(texstudio Poppler::Qt5)
+if(NOT MSVC)
+    set(WARNINGS_FLAGS -Wall -Wextra -Winit-self -Wmissing-include-dirs)
+    set(WARNINGS_FLAGS ${WARNINGS_FLAGS} -Wtrigraphs -Wunused -Wunknown-pragmas -Wundef -Wpointer-arith)
+    set(WARNINGS_FLAGS ${WARNINGS_FLAGS} -Wwrite-strings -Wempty-body -Wsign-compare -Waddress -Winline)
+    target_compile_options(texstudio_interface INTERFACE "$<$<CONFIG:DEBUG>:${WARNINGS_FLAGS}>")
+    if(UNIX)
+        target_link_options(texstudio_interface INTERFACE -rdynamic)
     else()
-        target_link_libraries(texstudio Poppler::Qt4)
+        target_compile_options(texstudio_interface INTERFACE -gstabs -g)
+    endif()
+    if (USE_ASAN)
+        target_compile_options(texstudio_interface INTERFACE -fsanitize=address -fno-omit-frame-pointer -g)
     endif()
 endif()
 
@@ -736,9 +711,24 @@ if (USE_IPO)
     # Optional IPO. Do not use IPO if it's not supported by compiler.
     check_ipo_supported(RESULT HAS_IPO OUTPUT IPO_CHECK_RESULT)
     if(HAS_IPO)
-        set_property(TARGET texstudio PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+        set_property(TARGET texstudio_interface PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
     else()
         message(WARNING "IPO is not supported: ${IPO_CHECK_RESULT}")
     endif()
 endif()
 
+
+add_library(texstudio_object OBJECT ${SOURCES} ${UI_HEADERS} ${RCC_SOURCES} ${MOC_SOURCES} ${MOC_HEADERS})
+set_property(TARGET texstudio_object PROPERTY CXX_STANDARD 11)
+target_link_libraries(texstudio_object texstudio_interface)
+
+add_library(texstudio_static STATIC $<TARGET_OBJECTS:texstudio_object>)
+add_library(texstudio_shared SHARED $<TARGET_OBJECTS:texstudio_object>)
+
+add_executable(texstudio $<TARGET_OBJECTS:texstudio_object> src/main.cpp)
+target_link_libraries(texstudio texstudio_interface)
+target_link_libraries(texstudio texstudio_static)
+
+if (TRUE AND WIN32) # TODO not 4.3
+    target_compile_definitions(texstudio_shared PUBLIC QT_QTSINGLECOREAPPLICATION_EXPORT=__declspec(dllexport))
+endif()
