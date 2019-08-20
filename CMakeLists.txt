@@ -9,7 +9,7 @@ project(texstudio
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/modules/")
 
-option(USE_QT4 "use Qt4 instead of Qt5" FALSE)
+option(USE_QT4 "use Qt4 instead of Qt5" FALSE) #TODO
 option(USE_PHONON "use Phonon" TRUE)
 option(USE_SYSTEM_HUNSPELL "use system Hunspell" TRUE) #TODO
 option(USE_SYSTEM_QUAZIP "use system Quazip" TRUE) #TODO
@@ -67,7 +67,6 @@ if (TRUE)
             src/qtsingleapplication/qtsinglecoreapplication.cpp
             src/qtsingleapplication/qtsingleapplication.cpp
             src/qtsingleapplication/qtlocalpeer.cpp)
-else()
 endif()
 
 ## sources.pri
@@ -520,7 +519,10 @@ if (USE_SYSTEM_QUAZIP)
     target_link_libraries(texstudio_interface INTERFACE ${QUAZIP_LIBRARIES})
 else()
     target_compile_definitions(texstudio_interface INTERFACE  QUAZIP_STATIC)
-    # include(src/quazip/quazip/quazip.pri)
+    set(BUILD_WITH_QT4 ${USE_QT4} CACHE BOOL "use Qt4 instead of Qt5")
+    add_subdirectory(src/quazip)
+    include_directories(src/quazip/quazip)
+    target_link_libraries(texstudio_interface INTERFACE quazip_static)
 endif()
 
 # include(src/pdfviewer/pdfviewer.pri)
