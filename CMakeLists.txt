@@ -9,7 +9,7 @@ project(texstudio
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/modules/")
 
-option(USE_QT4 "use Qt4 instead of Qt5" FALSE) #TODO
+option(USE_QT4 "use Qt4 instead of Qt5" FALSE)
 option(USE_PHONON "use Phonon" TRUE)
 option(USE_SYSTEM_HUNSPELL "use system Hunspell" TRUE)
 option(USE_SYSTEM_QUAZIP "use system Quazip" TRUE)
@@ -49,15 +49,19 @@ if (USE_QT5)
     if (USE_PHONON)
         find_package(Phonon4Qt5 REQUIRED)
     endif()
+
+    set(QT43 0)
 else()
     find_package(Qt4 COMPONENTS Core Network Xml Svg Script PrintSupport Concurrent REQUIRED)
     if (USE_PHONON)
         find_package(Phonon REQUIRED)
     endif()
+    if(${Qt5Core_VERSION} VERSION_LESS 4.4)
+        set(QT43 1)
+    endif()
 endif()
 
-## TODO: src/qtsingleapplication/qtsinglecoreapplication.pri if not 4.3.x
-if (TRUE)
+if (NOT QT43)
     include_directories(src/qtsingleapplication)
     set(HEADERS ${HEADERS}
             src/qtsingleapplication/qtsinglecoreapplication.h
@@ -572,18 +576,19 @@ else()
     else()
         find_package(ECM 5.19 REQUIRED NOMODULE)
         set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${ECM_MODULE_PATH} ${ECM_KDE_MODULE_DIR})
+
         if(USE_QT5)
             find_package(Poppler COMPONENTS Qt5 REQUIRED)
             target_link_libraries(texstudio_interface INTERFACE Poppler::Qt5) # Poppler::Core
-
         else()
             find_library(Poppler COMPONENTS Qt4 REQUIRED)
             target_link_libraries(texstudio_interface INTERFACE Poppler::Qt4) # Poppler::Core
         endif()
-        if (${Poppler_VERSION} GREATER 0.24)
+
+        if (${Poppler_VERSION} VERSION_GREATER 0.24)
             target_compile_definitions(texstudio_interface INTERFACE  HAS_POPPLER_24)
         endif()
-        if (${Poppler_VERSION} GREATER 0.31)
+        if (${Poppler_VERSION} VERSION_GREATER 0.31)
             target_compile_definitions(texstudio_interface INTERFACE  HAS_POPPLER_31)
         endif()
     endif()
@@ -597,6 +602,7 @@ IF(USE_TESTS) #TODO
         target_link_libraries(texstudio_interface INTERFACE Qt5::Test)
     else()
         find_package(Qt4 COMPONENTS Test REQUIRED)
+        target_link_libraries(texstudio_interface INTERFACE Qt4::Test)
     endif()
 
     set(HEADERS ${HEADERS}
@@ -688,7 +694,10 @@ if (USE_QT5)
     qt5_wrap_cpp(MOC_HEADERS ${HEADERS} OPTIONS -DQT_VERSION=0x050000) # https://bugreports.qt.io/browse/QTBUG-51028
     qt5_add_resources(RCC_SOURCES ${RESOURCES})
 else()
-    QT4_WRAP_UI(UI_HEADERS ${FORMS})
+    qt4_wrap_ui(UI_HEADERS ${FORMS})
+    qt4_wrap_cpp(MOC_SOURCES ${SOURCES} OPTIONS -DQT_VERSION=0x050000)
+    qt4_wrap_cpp(MOC_HEADERS ${HEADERS} OPTIONS -DQT_VERSION=0x050000) # https://bugreports.qt.io/browse/QTBUG-51028
+    qt4_add_resources(RCC_SOURCES ${RESOURCES})
 endif()
 target_include_directories(texstudio_interface INTERFACE ${CMAKE_CURRENT_BINARY_DIR}) # https://gitlab.kitware.com/cmake/cmake/issues/17456
 
@@ -730,6 +739,6 @@ add_executable(texstudio $<TARGET_OBJECTS:texstudio_object> src/main.cpp)
 target_link_libraries(texstudio texstudio_interface)
 target_link_libraries(texstudio texstudio_static)
 
-if (TRUE AND WIN32) # TODO not 4.3
+if (NOT QT43 AND WIN32)
     target_compile_definitions(texstudio_shared PUBLIC QT_QTSINGLECOREAPPLICATION_EXPORT=__declspec(dllexport))
 endif()
