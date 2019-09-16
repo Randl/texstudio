@@ -52,11 +52,12 @@ if (USE_QT5)
 
     set(QT43 0)
 else()
-    find_package(Qt4 COMPONENTS Core Network Xml Svg Script PrintSupport Concurrent REQUIRED)
+    find_package(Qt4 COMPONENTS QtCore QtNetwork QtXml QtSvg QtScript QtUiTools REQUIRED)
+    target_link_libraries(texstudio_interface INTERFACE Qt4::QtCore Qt4::QtNetwork Qt4::QtXml Qt4::QtSvg Qt4::QtScript Qt4::QtUiTools)
     if (USE_PHONON)
         find_package(Phonon REQUIRED)
     endif()
-    if(${Qt5Core_VERSION} VERSION_LESS 4.4)
+    if(${QT_VERSION_MINOR} VERSION_LESS 4)
         set(QT43 1)
     endif()
 endif()
@@ -601,8 +602,8 @@ IF(USE_TESTS) #TODO
         find_package(Qt5 COMPONENTS Test REQUIRED)
         target_link_libraries(texstudio_interface INTERFACE Qt5::Test)
     else()
-        find_package(Qt4 COMPONENTS Test REQUIRED)
-        target_link_libraries(texstudio_interface INTERFACE Qt4::Test)
+        find_package(Qt4 COMPONENTS QtTest REQUIRED)
+        target_link_libraries(texstudio_interface INTERFACE Qt4::QtTest)
     endif()
 
     set(HEADERS ${HEADERS}
@@ -690,13 +691,13 @@ endif()
 
 if (USE_QT5)
     qt5_wrap_ui(UI_HEADERS ${FORMS})
-    qt5_wrap_cpp(MOC_SOURCES ${SOURCES} OPTIONS -DQT_VERSION=0x050000)
+    qt5_wrap_cpp(MOC_SOURCES ${SOURCES} OPTIONS -DQT_VERSION=0x050000) # TODO: doesn't define  -DQT_NO_DEBUG (doesn't pass any defines?)
     qt5_wrap_cpp(MOC_HEADERS ${HEADERS} OPTIONS -DQT_VERSION=0x050000) # https://bugreports.qt.io/browse/QTBUG-51028
     qt5_add_resources(RCC_SOURCES ${RESOURCES})
 else()
     qt4_wrap_ui(UI_HEADERS ${FORMS})
-    qt4_wrap_cpp(MOC_SOURCES ${SOURCES} OPTIONS -DQT_VERSION=0x050000)
-    qt4_wrap_cpp(MOC_HEADERS ${HEADERS} OPTIONS -DQT_VERSION=0x050000) # https://bugreports.qt.io/browse/QTBUG-51028
+    qt4_wrap_cpp(MOC_SOURCES ${SOURCES} OPTIONS -DQT_VERSION=0x045000 -DNO_POPPLER_PREVIEW)
+    qt4_wrap_cpp(MOC_HEADERS ${HEADERS} OPTIONS -DQT_VERSION=0x045000 -DNO_POPPLER_PREVIEW) # https://bugreports.qt.io/browse/QTBUG-51028
     qt4_add_resources(RCC_SOURCES ${RESOURCES})
 endif()
 target_include_directories(texstudio_interface INTERFACE ${CMAKE_CURRENT_BINARY_DIR}) # https://gitlab.kitware.com/cmake/cmake/issues/17456
